@@ -29,12 +29,18 @@ if  [[ ${LAST_COMPLETED_BUILD_SHA} == "null" ]]; then
 
   REMOTE_BRANCHES=$(git branch -r | sed 's/\s*origin\///' | tr '\n' ' ')
   PARENT_BRANCH=master
+
+  echo REMOTE_BRANCHES: $REMOTE_BRANCHES
+  echo PARENT_BRANCH: $PARENT_BRANCH
+
   for BRANCH in ${TREE[@]}
   do
     BRANCH=${BRANCH#"origin/"}
+    echo BRANCH: $BRANCH
     if [[ " ${REMOTE_BRANCHES[@]} " == *" ${BRANCH} "* ]]; then
         echo "Found the parent branch: ${CIRCLE_BRANCH}..${BRANCH}"
         PARENT_BRANCH=$BRANCH
+        echo PARENT_BRANCH: $PARENT_BRANCH
         break
     fi
   done
@@ -46,6 +52,10 @@ if  [[ ${LAST_COMPLETED_BUILD_SHA} == "null" ]]; then
     | jq -r "map(\
       select(.status == \"success\") | select(.workflows.workflow_name != \"ci\") | select(.build_num < ${CIRCLE_BUILD_NUM})) \
     | .[0][\"vcs_revision\"]"`
+
+  echo LAST_COMPLETED_BUILD_URL: $LAST_COMPLETED_BUILD_URL
+  echo LAST_COMPLETED_BUILD_SHA: $LAST_COMPLETED_BUILD_SHA
+
 fi
 
 if [[ ${LAST_COMPLETED_BUILD_SHA} == "null" ]]; then
@@ -57,15 +67,22 @@ fi
 ## 2. Changed packages
 ############################################
 PACKAGES=$(ls ${ROOT} -l | grep ^d | awk '{print $9}')
+echo PACKAGES: $PACKAGES
 echo "Searching for changes since commit [${LAST_COMPLETED_BUILD_SHA:0:7}] ..."
 
 ## The CircleCI API parameters object
 PARAMETERS='"trigger":false'
 COUNT=0
+echo PARAMETERS: $PARAMETERS
+echo COUNT: $COUNT
 for PACKAGE in ${PACKAGES[@]}
 do
   PACKAGE_PATH=${ROOT#.}/$PACKAGE
   LATEST_COMMIT_SINCE_LAST_BUILD=$(git log -1 $CIRCLE_SHA1 ^$LAST_COMPLETED_BUILD_SHA --format=format:%H --full-diff ${PACKAGE_PATH#/})
+
+  echo PACKAGE_PATH: $PACKAGE_PATH
+  echo LATEST_COMMIT_SINCE_LAST_BUILD: $LATEST_COMMIT_SINCE_LAST_BUILD
+
 
   if [[ -z "$LATEST_COMMIT_SINCE_LAST_BUILD" ]]; then
     echo -e "\e[90m  [-] $PACKAGE \e[0m"
@@ -92,6 +109,9 @@ echo -e "  $DATA"
 
 URL="${CIRCLE_API}/v2/project/${REPOSITORY_TYPE}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pipeline"
 HTTP_RESPONSE=$(curl -s -u ${CIRCLE_TOKEN}: -o response.txt -w "%{http_code}" -X POST --header "Content-Type: application/json" -d "$DATA" $URL)
+
+echo URL: $URL
+echo HTTP_RESPONSE: $HTTP_RESPONSE
 
 if [ "$HTTP_RESPONSE" -ge "200" ] && [ "$HTTP_RESPONSE" -lt "300" ]; then
     echo "API call succeeded."
